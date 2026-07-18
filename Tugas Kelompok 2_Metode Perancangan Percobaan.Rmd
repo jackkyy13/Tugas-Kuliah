@@ -1,0 +1,79 @@
+---
+title: "Tugas Kelompok 2_Metode Perancangan Percobaan"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-05-09"
+output: rmdformats::downcute
+---
+
+# Anggota Kelompok 2
+
+Nama Anggota Kelompok 2:  
+1. Daffa Lukman Wahid Al Jailani M0401241008  
+2. Retno Sari M0401241010  
+3. Nisrina Salsabila M0401241015  
+4. Daffa Faaiz Al-Zakkii M0401241027  
+5. Rahma Annisa M0401241092  
+6. Rozan Al Hibrizi M0401241096  
+7. Tri Ananda Marpaung M0401241098  
+8. Rio Faudzan Pritajaya M0401241116  
+
+# Data
+
+```{r}
+# Membuat faktor untuk Kelompok (1 sampai 4), masing-masing diulang 12 kali
+blok <- factor(rep(1:4, each = 12))
+A <- factor(rep(c("Kontrol","PK","N","NP","NK","NPK"), each = 2, times = 4))
+B <- factor(rep(c("IR64","S969"), times = 24))
+# Data respon (kg/petak)
+Y <- c(
+# Blok 1
+20.7,27.7, 30.0,36.6, 39.9,37.4, 40.8,42.2, 42.4,39.8, 48.6,42.9,
+# Blok 2
+32.1,33.0, 30.7,33.8, 41.5,41.2, 43.5,46.0, 45.6,39.5, 49.8,45.9,
+# Blok 3
+29.5,26.3, 25.5,27.0, 46.4,45.4, 43.3,45.9, 44.8,40.9, 42.6,43.9,
+# Blok 4
+37.7,37.7, 36.9,39.0, 44.5,44.6, 43.4,46.2, 47.0,44.0, 46.6,45.6
+)
+```
+
+```{r}
+# Data frame
+data <- data.frame(blok, A, B, Y)
+head(data)
+```
+
+# Apakah perhitungan manual sama dengan output R?
+
+Ya, hasilnya sama, hanya ada beda di beberapa pembulatan.
+
+# Anova
+
+```{r}
+model <- aov(Y ~ A * B + Error(blok/A), data = data)
+summary(model)
+```
+
+# Ulasan Singkat Terkait Hasil Output R  
+  
+  
+Berdasarkan nilai P-value pada output R atau perbandingan F-hitung dengan F-tabel pada perhitungan manual, maka kesimpulannya:  
+  
+Blok (Pada ANOVA manual): Faktor blok memiliki nilai F-hitung sebesar 3.68, yang mana lebih besar dari F-tabel 0.05 (3.68>3.287). Maka, kesimpulannya faktor blok berpengaruh nyata (*). Hal ini menunjukkan bahwa pengelompokan (blocking) yang dilakukan sudah efektif. Terdapat perbedaan kesuburan tanah atau kondisi lingkungan di antara ke-4 blok tersebut, sehingga penggunaan RAK sebagai desain dasar sudah sangat tepat untuk mengontrol keragaman lokal tersebut.  
+  
+Faktor A (Pupuk NPK): Berpengaruh sangat nyata (P=5.26e-06 atau tanda ***). Artinya bahwa perbedaan kombinasi pupuk NPK secara statistik memberikan dampak yang sangat besar terhadap perbedaan hasil panen padi. Ada dosis atau jenis pupuk tertentu yang memang jauh lebih unggul dibandingkan yang lain.
+  
+Faktor B (Genotipe): Berpengaruh tidak nyata (P=0.91622 atau tanda tn). Artinya jika kita hanya melihat dari sisi varietasnya saja (tanpa mempertimbangkan pupuk), tidak ada perbedaan hasil yang berarti antara genotipe IR-64 dan S-969. Keduanya memiliki potensi hasil yang serupa secara mandiri.
+  
+Interaksi AxB: Berpengaruh sangat nyata (P=0.00444 atau tanda **). Artinya, respon setiap genotipe padi ternyata berbeda-beda tergantung jenis pupuk yang diberikan. Begitu juga sebaliknya, efektivitas pupuk sangat bergantung pada jenis varietas padi yang digunakan.  
+  
+Pada hitung manual, KK (Koefisien Keragaman) a = 10.64%. Nilai ini menunjukkan tingkat ketelitian pada level petak utama (pupuk). Nilai di bawah 15-20% untuk percobaan lapangan dianggap masih dapat diterima atau cukup teliti.  
+  
+Pada hitung manual, KK (Koefisien Keragaman) b = 4.43%. Nilai ini menunjukkan tingkat ketelitian pada level anak petak (genotipe). Karena nilainya sangat kecil, berarti data pada level ini sangat konsisten dan dapat dipercaya akurasinya.  
+  
+Karena interaksinya nyata, maka tidak disarankan memilih pupuk terbaik secara umum, melainkan harus memilih pasangan (kombinasi) pupuk dan varietas yang paling cocok untuk mendapatkan hasil maksimal.
+
+Setelah membaca hasil manual dengan output R, seluruh nilai Jumlah Kuadrat (JK) dan Kuadrat Tengah (KT) ditemukan sama. Hal ini menunjukkan bahwa rumus manual yang digunakan sudah benar sesuai dengan standar perhitungan ANOVA untuk rancangan Split Plot.
+
+
+
