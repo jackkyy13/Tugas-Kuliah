@@ -1,0 +1,147 @@
+---
+title: "Project Kelompok 2 - Panel"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-05-02"
+output: rmdformats::downcute
+---
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(reshape2)
+library(plm)
+library(lmtest)
+library(car)
+```
+
+
+```{r}
+data2023 <- read_excel("C:\\Users\\ACER\\OneDrive\\Dokumen\\AnregData.xlsx", sheet = "2023") %>% mutate(Tahun = 2023)
+data2024 <- read_excel("C:\\Users\\ACER\\OneDrive\\Dokumen\\AnregData.xlsx", sheet = "2024") %>% mutate(Tahun = 2024)
+data2025 <- read_excel("C:\\Users\\ACER\\OneDrive\\Dokumen\\AnregData.xlsx", sheet = "2025") %>% mutate(Tahun = 2025)
+
+data_panel <- bind_rows(data2023, data2024, data2025)
+data_panel
+```
+
+
+```{r}
+pdata <- pdata.frame(data_panel, index = c("Provinsi", "Tahun"))
+pdata
+```
+
+# Eksplorasi
+
+```{r}
+cor_matrix <- cor(data_panel %>% select(where(is.numeric), -Tahun))
+
+corrplot(cor_matrix, 
+         method = "color", 
+         addCoef.col = "black", 
+         type = "upper",
+         tl.col = "black",
+         title = "Matriks Korelasi Variabel Penelitian", 
+         mar=c(0,0,1,0),
+         number.cex = 0.8)
+```
+
+```{r}
+ggplot(data_panel, aes(x = Tahun, y = `PM 2.5`, group = Provinsi, color = Provinsi)) +
+  geom_line(alpha = 0.5) +
+  stat_summary(aes(group = 1), fun = mean, geom = "line", size = 1.5, color = "black") +
+  theme_minimal() +
+  labs(title = "Tren PM 2.5 Indonesia 2023-2025", subtitle = "Garis hitam: Rata-rata Nasional") +
+  theme(legend.position = "none")
+```
+
+# CEM 
+
+```{r}
+model_cem <- plm(PM.2.5 ~ Luas.Kebakaran.Hutan + Kendaraan.Bermotor + 
+                 Kepadatan.Penduduk + Curah.Hujan + Suhu + 
+                 Jumlah.Perusahaan.Konstruksi, 
+                 data = pdata, model = "pooling")
+summary(model_cem)
+```
+
+# FEM
+
+```{r}
+model_fem <- update(model_cem, model = "within")
+summary(model_fem)
+```
+
+# REM
+
+```{r}
+model_rem <- update(model_cem, model = "random")
+summary(model_rem)
+```
+# Uji Pemilihan Model
+
+## Uji Chow (CEM vs FEM)
+```{r}
+pooltest(model_cem, model_fem) #H0: CEM lebih baik; H1: FEM lebih baik
+```
+
+# Uji Hausman (FEM vs REM)
+
+```{r}
+phtest(model_fem, model_rem) #H0: REM lebih baik; H1: FEM lebih baik
+```
+
+# Uji LM (REM vs CEM)
+
+```{r}
+plmtest(model_cem, type = "bp") #H0: CEM lebih baik; H1: REM lebih baik
+```
+
+# Uji Asumsi
+
+```{r}
+pdwtest(model_rem)
+```
+
+
+```{r}
+bptest(model_fem)
+```
+
+
+```{r}
+model_vif <- lm(`PM 2.5` ~ `Luas Kebakaran Hutan` + `Kendaraan Bermotor` + 
+                `Kepadatan Penduduk` + `Curah Hujan` + Suhu + 
+                `Jumlah Perusahaan Konstruksi`, data = data_panel)
+vif(model_vif)
+```
+
+# Perbaiki
+
+```{r}
+model_rem_log <- plm(log(PM.2.5) ~ log(Luas.Kebakaran.Hutan + 1) + 
+                     log(Kendaraan.Bermotor) + log(Kepadatan.Penduduk) + 
+                     log(Curah.Hujan) + Suhu, 
+                     data = pdata, model = "random")
+
+summary(model_rem_log)
+```
+
+
+```{r}
+library(lmtest)
+library(sandwich)
+coeftest(model_rem_log, vcov = vcovHC(model_rem_log, type = "HC1"))
+```
+
+
+
+
+
+
+
+
+
+
+

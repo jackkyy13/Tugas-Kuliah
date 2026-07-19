@@ -1,0 +1,37 @@
+---
+title: "Belajar R - Analisis Regresi Produksi Beras 2023"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-05-03"
+output: rmdformats::downcute
+---
+
+# Load Data
+
+```{r}
+library(readxl)
+data <- read_excel("C:\\Users\\ACER\\OneDrive\\Dokumen\\Produksi_Beras_2023.xlsx")
+View(data)
+head(data)
+```
+
+# Struktur Data
+
+```{r}
+str(data)
+```
+
+# Summary Data
+
+```{r}
+summary(data)
+```
+
+# Missing Value
+
+```{r}
+colSums(is.na(data))
+```
+
+
+
+

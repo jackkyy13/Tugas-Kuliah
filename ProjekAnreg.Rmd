@@ -1,0 +1,215 @@
+---
+title: "Anreg Project Kelompok 2 - 2025"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-04-28"
+output: rmdformats::downcute
+---
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(corrplot)
+library(car)
+library(lmtest)
+library(reshape2)
+```
+
+# Data
+
+```{r}
+data <- read_excel("C:\\Users\\ACER\\OneDrive\\Dokumen\\AnregData.xlsx", sheet="2025")
+head(data)
+```
+```{r}
+str(data)
+```
+
+# Statistika Deskpritif
+
+```{r}
+summary(data)
+data.frame(
+  Mean = sapply(data[, -1], mean), 
+  Median = sapply(data[, -1], median), 
+  SD = sapply(data[, -1], sd), 
+  Min = sapply(data[, -1], min), 
+  Max = sapply(data[, -1], max) 
+)
+```
+
+# Histogram
+
+```{r}
+library(reshape2) 
+library(ggplot2)
+data_long <- melt(data[, -1])
+ggplot(data_long, aes(x = value, fill = variable)) +
+  geom_histogram(color = "black", bins = 10, alpha = 0.8) +
+  facet_wrap(~variable, scales = "free") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "Histogram Seluruh Variabel",
+    x = "Nilai",
+    y = "Frekuensi"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14) 
+  ) 
+```
+
+# Boxplot
+
+```{r}
+library(reshape2) 
+library(ggplot2)
+```
+
+
+```{r}
+data_long <- melt(data[, -1])
+ggplot(data_long, aes(x = variable, y = value, fill = variable)) +
+  geom_boxplot(alpha = 0.7) +
+  scale_fill_brewer(palette = "Set3") +
+  labs(
+    title = "Boxplot Seluruh Variabel",
+    x = "Variabel",
+    y = "Nilai"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+# Scatter Plot
+
+```{r}
+library(reshape2) 
+library(ggplot2)
+data_long <- melt(data[, -1], id.vars = "PM 2.5")
+ggplot(data_long, aes(x = value, y = `PM 2.5`)) +
+  geom_point(color = "#3949AB", alpha = 0.7, size = 2) +
+  geom_smooth(method = "lm", color = "#E53935", se = FALSE) +
+  facet_wrap(~variable, scales = "free") +
+  labs(title = "Hubungan Variabel Prediktor dengan PM 2.5",
+       x = "Variabel Prediktor",
+       y = "PM 2.5") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    strip.text = element_text(face = "bold")
+  )
+```
+
+# Matriks Korelasi
+
+```{r}
+cor_matrix <- cor(data[, -1])  # Gapake variabel Provinsi
+cor_matrix
+corrplot(cor_matrix,
+         method = "color",
+         type = "upper",
+         addCoef.col = "black",
+         tl.col = "black",
+         col = colorRampPalette(c("#D32F2F", "white", "#1976D2"))(200),
+         number.cex = 0.7)
+```
+
+# Model
+
+```{r}
+model <- lm(`PM 2.5` ~ `Luas Kebakaran Hutan` + `Kendaraan Bermotor` + 
+            `Kepadatan Penduduk` + `Curah Hujan` + Suhu + `Jumlah Perusahaan Konstruksi`, data=data)
+summary(model)
+```
+
+# Uji Kenormalan Residual
+
+```{r}
+shapiro.test(residuals(model))
+```
+
+```{r}
+qqnorm(residuals(model))
+qqline(residuals(model), col = "red")
+```
+
+# Homoskedastisitas
+
+```{r}
+library(lmtest)
+bptest(model)
+```
+
+# Independensi Residual
+
+```{r}
+dwtest(model)
+```
+
+# Multikolinearitas
+
+```{r}
+library(car)
+vif(model)
+```
+
+# Outlier
+
+```{r}
+rstudent(model)
+```
+
+```{r}
+plot(model, which = 1)
+```
+
+# Leverage
+```{r}
+hatvalues(model)
+```
+
+```{r}
+plot(model, which = 5)
+```
+
+```{r}
+n <- nrow(data)
+2 * (5 + 1) / n
+```
+
+# Cook's Distance
+
+```{r}
+cooks.distance(model)
+```
+
+```{r}
+plot(model, which = 4)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
