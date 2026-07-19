@@ -1,0 +1,668 @@
+---
+title: "REGSPASPAN"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-05-15"
+output: html_document
+---
+
+```{r}
+# ============================================================
+# ANALISIS REGRESI DATA PANEL SPASIAL
+# Variabel Respons (Y) : PM_2.5 (Konsentrasi Partikel Udara)
+# Data              : 34 Provinsi Indonesia, Tahun 2023-2025
+# ============================================================
+
+# ============================================================
+# INSTALL & LOAD PACKAGE
+# ============================================================
+# Jalankan install.packages() jika belum terinstall:
+# install.packages(c("readxl","dplyr","plm","spdep","spatialreg",
+#                    "lmtest","randtests","car","ggplot2","sf","tidyr"))
+
+library(readxl)
+library(dplyr)
+library(plm)
+library(spdep)
+library(spatialreg)
+library(lmtest)
+library(randtests)
+library(car)
+library(ggplot2)
+library(sf)
+library(tidyr)
+```
+
+
+```{r}
+# ============================================================
+# 0. KOORDINAT PROVINSI INDONESIA (Longitude, Latitude)
+# ============================================================
+# Koordinat centroid masing-masing provinsi (34 provinsi)
+koordinat <- data.frame(
+  Provinsi = c(
+    "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Jambi",
+    "Sumatera Selatan", "Bengkulu", "Lampung",
+    "Kepulauan Bangka Belitung", "Kepulauan Riau",
+    "DKI Jakarta", "Jawa Barat", "Jawa Tengah",
+    "DI Yogyakarta", "Jawa Timur", "Banten", "Bali",
+    "Nusa Tenggara Barat", "Nusa Tenggara Timur",
+    "Kalimantan Barat", "Kalimantan Tengah",
+    "Kalimantan Selatan", "Kalimantan Timur", "Kalimantan Utara",
+    "Sulawesi Utara", "Sulawesi Tengah", "Sulawesi Selatan",
+    "Sulawesi Tenggara", "Gorontalo", "Sulawesi Barat",
+    "Maluku", "Maluku Utara", "Papua Barat", "Papua"
+  ),
+  Long = c(
+    96.74, 98.67, 100.35, 101.45, 103.61,
+    104.76, 102.34, 105.32,
+    106.11, 104.03,
+    106.82, 107.62, 110.22,
+    110.43, 112.23, 106.06, 115.17,
+    116.42, 121.07,
+    113.94, 113.94,
+    115.28, 117.14, 117.56,
+    124.84, 121.44, 119.43,
+    122.15, 122.47, 119.39,
+    128.19, 127.81, 133.17, 138.04
+  ),
+  Lat = c(
+    4.69, 2.08, -0.72, 0.51, -1.61,
+    -3.32, -3.79, -4.56,
+    -2.12, 3.95,
+    -6.21, -6.92, -7.15,
+    -7.87, -7.54, -6.40, -8.34,
+    -8.65, -8.66,
+    -0.13, -1.68,
+    -3.09, 0.54, 3.01,
+    1.49, -1.43, -3.66,
+    -4.15, 0.55, -2.84,
+    -3.24, 1.57, -1.34, -4.27
+  ),
+  ID = 1:34
+)
+```
+
+
+```{r}
+# ============================================================
+# 1. IMPORT & PERSIAPAN DATA
+# ============================================================
+setwd(".")   # Sesuaikan dengan direktori kerja Anda
+
+# Baca masing-masing sheet
+data2023 <- read_excel("AnregData.xlsx", sheet = "2023")
+data2024 <- read_excel("AnregData.xlsx", sheet = "2024")
+data2025 <- read_excel("AnregData.xlsx", sheet = "2025")
+
+# Tambahkan kolom Tahun
+data2023$Tahun <- 2023
+data2024$Tahun <- 2024
+data2025$Tahun <- 2025
+```
+
+
+```{r}
+# Penyesuaian nama kolom DI Yogyakarta agar konsisten
+data2025 <- data2025 %>%
+  mutate(Provinsi = ifelse(Provinsi == "Daerah Istimewa Yogyakarta",
+                           "DI Yogyakarta", Provinsi))
+
+# Gabungkan semua tahun
+data <- bind_rows(data2023, data2024, data2025)
+
+# Tambahkan ID dan koordinat
+data <- data %>%
+  left_join(koordinat, by = "Provinsi") %>%
+  arrange(ID, Tahun)
+```
+
+
+```{r}
+head(data)
+cat("Dimensi data:", nrow(data), "x", ncol(data), "\n")
+cat("Jumlah provinsi:", n_distinct(data$Provinsi), "\n")
+cat("Tahun:", unique(data$Tahun), "\n")
+```
+
+
+```{r}
+# ============================================================
+# 2. EKSPLORASI DATA
+# ============================================================
+
+# Boxplot Y per tahun
+par(mfrow = c(1, 3))
+boxplot(data$PM_2.5[data$Tahun == 2023], main = "PM_2.5 2023", ylab = "PM_2.5")
+boxplot(data$PM_2.5[data$Tahun == 2024], main = "PM_2.5 2024", ylab = "PM_2.5")
+boxplot(data$PM_2.5[data$Tahun == 2025], main = "PM_2.5 2025", ylab = "PM_2.5")
+
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# Boxplot masing-masing peubah penjelas
+par(mfrow = c(2, 6))
+boxplot(data$Pembakaran_Kayu,         main = "X1: Pembakaran Kayu")
+boxplot(data$Jumlah_Panjang_Jalan,    main = "X2: Panjang Jalan")
+boxplot(data$Jumlah_Hot_Spot,         main = "X3: Hot Spot")
+boxplot(data$Kelembapan,              main = "X4: Kelembapan")
+boxplot(data$Tekanan_Udara,           main = "X5: Tekanan Udara")
+boxplot(data$Kecepatan_Angin,         main = "X6: Kec. Angin")
+boxplot(data$Luas_Kebakaran_Hutan,    main = "X7: Luas Kbk Hutan")
+boxplot(data$Kendaraan_Bermotor,      main = "X8: Kendaraan")
+boxplot(data$Kepadatan_Penduduk,      main = "X9: Kepadatan")
+boxplot(data$Curah_Hujan,             main = "X10: Curah Hujan")
+boxplot(data$Suhu,                    main = "X11: Suhu")
+boxplot(data$Jumlah_Perusahaan_Konstruksi, main = "X12: Perus. Konstruksi")
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# Statistik deskriptif
+summary(data[, c("PM_2.5", "Pembakaran_Kayu", "Jumlah_Panjang_Jalan",
+                 "Jumlah_Hot_Spot", "Kelembapan", "Tekanan_Udara",
+                 "Kecepatan_Angin", "Luas_Kebakaran_Hutan",
+                 "Kendaraan_Bermotor", "Kepadatan_Penduduk",
+                 "Curah_Hujan", "Suhu", "Jumlah_Perusahaan_Konstruksi")])
+```
+
+
+```{r}
+# ============================================================
+# 3. SCALING DATA
+# ============================================================
+vars_model <- c("PM_2.5", "Pembakaran_Kayu", "Jumlah_Panjang_Jalan",
+                "Jumlah_Hot_Spot", "Kelembapan", "Tekanan_Udara",
+                "Kecepatan_Angin", "Luas_Kebakaran_Hutan",
+                "Kendaraan_Bermotor", "Kepadatan_Penduduk",
+                "Curah_Hujan", "Suhu", "Jumlah_Perusahaan_Konstruksi")
+
+data_scaled      <- scale(data[, vars_model])
+datafix          <- cbind(data[, c("ID", "Provinsi", "Long", "Lat", "Tahun")],
+                          as.data.frame(data_scaled))
+
+head(datafix)
+```
+
+
+```{r}
+# ============================================================
+# 4. UJI MULTIKOLINEARITAS
+# ============================================================
+reg <- lm(PM_2.5 ~ Pembakaran_Kayu + Jumlah_Panjang_Jalan + Jumlah_Hot_Spot +
+            Kelembapan + Tekanan_Udara + Kecepatan_Angin + Luas_Kebakaran_Hutan +
+            Kendaraan_Bermotor + Kepadatan_Penduduk + Curah_Hujan +
+            Suhu + Jumlah_Perusahaan_Konstruksi,
+          data = datafix)
+
+vif_values <- vif(reg)
+print(vif_values)
+cat("\nCatatan: Peubah dengan VIF >= 10 perlu dipertimbangkan untuk dikeluarkan.\n")
+```
+
+
+```{r}
+# ============================================================
+# 5. ANALISIS DATA PANEL
+# ============================================================
+formula_model <- PM_2.5 ~ Pembakaran_Kayu + Jumlah_Panjang_Jalan +
+  Jumlah_Hot_Spot + Kelembapan + Tekanan_Udara + Kecepatan_Angin +
+  Luas_Kebakaran_Hutan + Kendaraan_Bermotor + Kepadatan_Penduduk +
+  Curah_Hujan + Suhu + Jumlah_Perusahaan_Konstruksi
+```
+
+
+```{r}
+# Model Common Effect (CEM / Pooled)
+cem <- plm(formula_model, data = datafix, model = "pooling",
+           index = c("ID", "Tahun"))
+```
+
+
+```{r}
+# Model Fixed Effect (FEM)
+fem <- plm(formula_model, data = datafix, model = "within",
+           index = c("ID", "Tahun"))
+```
+
+
+```{r}
+# Model Random Effect (REM)
+rem <- plm(formula_model, data = datafix, model = "random",
+           index = c("ID", "Tahun"))
+```
+
+
+```{r}
+# ============================================================
+# 6. UJI PEMILIHAN MODEL PANEL
+# ============================================================
+
+# -- Uji Chow: CEM vs FEM
+cat("\n========== UJI CHOW (CEM vs FEM) ==========\n")
+chow_test <- pFtest(fem, cem)
+print(chow_test)
+cat("Kesimpulan:", ifelse(chow_test$p.value < 0.05,
+                          "Tolak H0 => Model FEM lebih baik dari CEM",
+                          "Gagal tolak H0 => Model CEM lebih baik dari FEM"), "\n")
+```
+
+
+```{r}
+# -- Uji Hausman: FEM vs REM
+cat("\n========== UJI HAUSMAN (FEM vs REM) ==========\n")
+hausman_test <- phtest(fem, rem)
+print(hausman_test)
+cat("Kesimpulan:", ifelse(hausman_test$p.value < 0.05,
+                          "Tolak H0 => Model FEM lebih baik dari REM",
+                          "Gagal tolak H0 => Model REM lebih baik dari FEM"), "\n")
+```
+
+
+```{r}
+# -- Uji Lagrange Multiplier (jika REM yang terpilih dari Hausman)
+cat("\n========== UJI LAGRANGE MULTIPLIER (Two-ways) ==========\n")
+print(plmtest(cem, effect = "twoways", type = "bp"))
+print(plmtest(cem, effect = "individual", type = "bp"))
+print(plmtest(cem, effect = "time", type = "bp"))
+```
+
+
+```{r}
+# -- Ringkasan model terpilih (sesuaikan berdasarkan hasil uji)
+cat("\n========== RINGKASAN MODEL PANEL TERPILIH ==========\n")
+# Ganti 'fem' dengan 'rem' atau 'cem' sesuai hasil uji di atas
+model_panel <- rem
+summary(model_panel)
+cat("\nR-Squared model panel:", summary(model_panel)$r.squared["rsq"], "\n")
+```
+
+
+```{r}
+# ============================================================
+# 7. MATRIKS PEMBOBOT SPASIAL
+# ============================================================
+# Ambil koordinat unik per provinsi (35 unit spasial, 1 titik per provinsi)
+longlat <- koordinat[, c("Long", "Lat")]
+
+# -- k-NN (k=3)
+knn    <- knearneigh(longlat, k = 3)
+nb     <- knn2nb(knn, sym = TRUE)
+w_knn  <- nb2listw(nb)
+```
+
+
+```{r}
+# -- Invers Jarak
+d      <- dist(longlat, method = "euclidean", diag = TRUE, upper = TRUE)
+w1     <- as.matrix(1 / d)
+diag(w1) <- 0
+w_inv  <- mat2listw(w1, style = "W")
+```
+
+
+```{r}
+# -- Eksponensial
+w2     <- as.matrix(exp(-d))
+diag(w2) <- 0
+w_exp  <- mat2listw(w2, style = "W")
+```
+
+
+```{r}
+# Pembobot untuk pengujian (menggunakan semua baris data panel)
+longlat2 <- datafix[, c("Long", "Lat")]
+
+knn2   <- knearneigh(longlat2, k = 3)
+nb2    <- knn2nb(knn2, sym = TRUE)
+w_knn2 <- nb2listw(nb2)
+
+d2     <- dist(longlat2, method = "euclidean", diag = TRUE, upper = TRUE)
+w1.2   <- as.matrix(1 / d2)
+w1.2[!is.finite(w1.2)] <- 0
+w_inv2 <- mat2listw(w1.2, style = "W")
+
+w2.2   <- as.matrix(exp(-d2))
+diag(w2.2) <- 0
+w_exp2 <- mat2listw(w2.2, style = "W")
+```
+
+
+```{r}
+# ============================================================
+# 8. UJI AUTOKORELASI SPASIAL (Moran's I)
+# ============================================================
+cat("\n========== MORAN'S I (k-NN) ==========\n")
+moran_knn <- moran.test(datafix$PM_2.5, listw = w_knn2)
+print(moran_knn)
+
+cat("\n========== MORAN'S I (Invers Jarak) ==========\n")
+moran_inv <- moran.test(datafix$PM_2.5, listw = w_inv2)
+print(moran_inv)
+
+cat("\n========== MORAN'S I (Eksponensial) ==========\n")
+moran_exp <- moran.test(datafix$PM_2.5, listw = w_exp2)
+print(moran_exp)
+```
+
+
+```{r}
+# ============================================================
+# 9. UJI KERAGAMAN SPASIAL (Breusch-Pagan)
+# ============================================================
+# Catatan: memerlukan koordinat sebagai SpatialPoints
+library(sp)
+datafix_sp <- datafix
+coordinates(datafix_sp) <- c("Long", "Lat")
+
+cat("\n========== UJI BREUSCH-PAGAN (Keragaman Spasial) ==========\n")
+bp_test <- bptest(model_panel, ~ coordinates(datafix_sp))
+print(bp_test)
+cat("Kesimpulan:", ifelse(bp_test$p.value < 0.05,
+                          "Tolak H0 => Terdapat keragaman spasial (Heteroskedastisitas Spasial)",
+                          "Gagal tolak H0 => Tidak terdapat keragaman spasial"), "\n")
+```
+
+
+```{r}
+# ============================================================
+# 10. UJI PENGGANDA LAGRANGE (Pemilihan Model Spasial)
+# ============================================================
+cat("\n========== UJI LAGRANGE MULTIPLIER SPASIAL (k-NN) ==========\n")
+lm_test_knn <- lm.LMtests(reg, listw = w_knn2, test = "all")
+summary(lm_test_knn)
+
+cat("\n========== UJI LAGRANGE MULTIPLIER SPASIAL (Invers Jarak) ==========\n")
+lm_test_inv <- lm.LMtests(reg, listw = w_inv2, test = "all")
+summary(lm_test_inv)
+
+cat("\n========== UJI LAGRANGE MULTIPLIER SPASIAL (Eksponensial) ==========\n")
+lm_test_exp <- lm.LMtests(reg, listw = w_exp2, test = "all")
+summary(lm_test_exp)
+```
+
+
+```{r}
+# ============================================================
+# PANDUAN PEMILIHAN MODEL SPASIAL:
+# - LMlag signifikan, LMerr tidak  => SAR (Spatial Autoregressive)
+# - LMerr signifikan, LMlag tidak  => SEM (Spatial Error Model)
+# - Keduanya signifikan => lihat RLMlag vs RLMerr (yang lebih kecil p-value)
+#   atau gunakan SDM (Spatial Durbin Model)
+# - SARMA: keduanya sekaligus
+# ============================================================
+
+# ============================================================
+# 11. ANALISIS SPASIAL PANEL - SPATIAL DURBIN MODEL (SDM)
+# ============================================================
+# Gunakan pembobot yang memberikan hasil signifikan pada uji LM
+# Contoh menggunakan w_knn (sesuaikan dengan hasil uji Anda)
+library(splm)
+cat("\n========== SPATIAL DURBIN MODEL (SDM) ==========\n")
+sdm <- spml(PM_2.5 ~ Pembakaran_Kayu + Jumlah_Panjang_Jalan +
+              Jumlah_Hot_Spot + Kelembapan + Tekanan_Udara +
+              Kecepatan_Angin + Luas_Kebakaran_Hutan +
+              Kendaraan_Bermotor + Kepadatan_Penduduk +
+              Curah_Hujan + Suhu + Jumlah_Perusahaan_Konstruksi,
+            data    = datafix,
+            listw   = w_knn,
+            model   = "within",
+            effect  = "individual",
+            spatial.error = "b",
+            spatial.lag   = "b")
+summary(sdm)
+```
+
+
+```{r}
+# R-Square SDM
+rsq_sdm <- 1 - var(sdm$resid) / var(datafix$PM_2.5)
+cat("R-Squared SDM:", round(rsq_sdm, 4), "\n")
+```
+
+
+```{r}
+# ============================================================
+# 12. UJI ASUMSI SISAAN SDM
+# ============================================================
+err_sdm <- sdm$residuals
+```
+
+
+```{r}
+# -- Normalitas (Kolmogorov-Smirnov)
+cat("\n========== UJI NORMALITAS SISAAN (KS Test) ==========\n")
+ks_result <- ks.test(err_sdm, "pnorm",
+                     mean = mean(err_sdm), sd = sd(err_sdm))
+print(ks_result)
+cat("Kesimpulan:", ifelse(ks_result$p.value > 0.05,
+                          "Gagal tolak H0 => Sisaan berdistribusi Normal",
+                          "Tolak H0 => Sisaan TIDAK berdistribusi Normal"), "\n")
+```
+
+
+```{r}
+# QQ-Plot
+qqnorm(err_sdm, main = "QQ-Plot Sisaan SDM")
+qqline(err_sdm, col = "red")
+```
+
+
+```{r}
+# -- Kehomogenan Ragam (Glejser Test)
+cat("\n========== UJI KEHOMOGENAN RAGAM (Glejser) ==========\n")
+datafix$error_sdm <- abs(err_sdm)
+glejser_sdm <- lm(error_sdm ~ Pembakaran_Kayu + Jumlah_Panjang_Jalan +
+                    Jumlah_Hot_Spot + Kelembapan + Tekanan_Udara +
+                    Kecepatan_Angin + Luas_Kebakaran_Hutan +
+                    Kendaraan_Bermotor + Kepadatan_Penduduk +
+                    Curah_Hujan + Suhu + Jumlah_Perusahaan_Konstruksi,
+                  data = datafix)
+summary(glejser_sdm)
+cat("Kesimpulan:", ifelse(summary(glejser_sdm)$fstatistic[1] > 0 &
+                            pf(summary(glejser_sdm)$fstatistic[1],
+                               summary(glejser_sdm)$fstatistic[2],
+                               summary(glejser_sdm)$fstatistic[3],
+                               lower.tail = FALSE) > 0.05,
+                          "Ragam homogen (Homokedastisitas)",
+                          "Ragam tidak homogen (Heterokedastisitas)"), "\n")
+```
+
+
+```{r}
+# -- Kebebasan Sisaan (Runs Test)
+cat("\n========== UJI KEBEBASAN SISAAN (Runs Test) ==========\n")
+runs_result <- runs.test(err_sdm)
+print(runs_result)
+cat("Kesimpulan:", ifelse(runs_result$p.value > 0.05,
+                          "Gagal tolak H0 => Sisaan saling bebas (tidak ada autokorelasi)",
+                          "Tolak H0 => Sisaan TIDAK bebas (ada autokorelasi)"), "\n")
+```
+
+
+```{r}
+# ============================================================
+# 13. ROBUST SDM (M-Estimator) — Jika asumsi sisaan tidak terpenuhi
+# ============================================================
+# Jalankan bagian ini jika uji asumsi (normalitas / homogenitas) ditolak
+
+cat("\n========== ROBUST SDM (M-Estimator Bisquare) ==========\n")
+
+# Moran plot sisaan SDM
+moran.plot(sdm$residuals, w_knn2,
+           main = "Moran Plot Sisaan SDM",
+           xlab = "Sisaan", ylab = "Lag Spasial Sisaan")
+
+robust.SDM <- function(X, y, bobot, rho) {
+  n <- length(y)
+  k <- ncol(X)
+  bo <- rep(1, n)
+  X  <- cbind(bo, X)
+  X  <- as.matrix(X)
+  p  <- k + 1
+  c  <- 4.685
+  I  <- diag(rep(1, n))
+  W  <- rho * bobot
+  W  <- as.matrix(W)
+  V  <- I - W
+  yb <- V %*% y
+
+  # Step 1: Delta awal
+  delta_awal <- solve(crossprod(X, X), tol = 1e-20) %*% t(X) %*% yb
+  cat("Nilai delta awal:\n"); print(delta_awal)
+
+  # Step 2: Residual awal
+  yhat     <- W %*% y + X %*% delta_awal
+  residual <- y - yhat
+
+  # Step 3: Iterasi IRLS
+  s        <- median(abs(residual - median(residual))) / 0.6745
+  u        <- residual / s
+  u_abs    <- abs(u)
+  w        <- ifelse(u_abs > c, 0, (1 - (u / c)^2)^2)
+  Wr       <- diag(as.vector(w), n)
+  WX       <- Wr %*% X
+  delta    <- solve(crossprod(X, WX), tol = 1e-20) %*% t(X) %*% Wr %*% yb
+  a        <- 0
+
+  repeat {
+    con <- abs(delta - delta_awal) / abs(delta_awal + 1e-10)
+    if (all(con <= 0.01)) {
+      cat("\n=== ITERASI SELESAI ===\n")
+      break
+    }
+    a          <- a + 1
+    cat("\n*** ITERASI", a, "***\n")
+    delta_awal <- delta
+    ytopi      <- W %*% y + X %*% delta_awal
+    residual   <- y - ytopi
+    s          <- median(abs(residual - median(residual))) / 0.6745
+    u          <- residual / s
+    u_abs      <- abs(u)
+    w          <- ifelse(u_abs > c, 0, (1 - (u / c)^2)^2)
+    Wr         <- diag(as.vector(w), n)
+    WX         <- Wr %*% X
+    delta      <- solve(crossprod(X, WX), tol = 1e-20) %*% t(X) %*% Wr %*% yb
+  }
+
+  # Step 5: MSE
+  v         <- ifelse(w == 0, 1, 0)
+  bobot_nol <- sum(v)
+  H         <- X %*% solve(crossprod(X, WX), tol = 1e-20) %*% t(X) %*% Wr
+  SSE       <- t(yb) %*% t(I - H) %*% Wr %*% (I - H) %*% yb
+  db        <- n - k - 1 - bobot_nol
+  MSE       <- SSE / db
+
+  # Step 6-7: R-Square
+  wjumlah   <- sum(diag(Wr))
+  wy        <- sum(w * y)
+  ywbar     <- wy / wjumlah
+  SST       <- sum(w * (y - ywbar)^2)
+  Rsquare   <- 1 - (SSE / SST)
+  Adj.Rsq   <- 1 - ((n - 1) / (n - k - 1)) * (1 - Rsquare)
+
+  # Step 8: Uji F
+  SSR  <- SST - SSE
+  MSR  <- SSR / k
+  Fhit <- MSR / MSE
+  sig_F <- 1 - pf(Fhit, k, db)
+
+  # Step 9: Uji Wald
+  Wy       <- bobot %*% y
+  Z        <- cbind(Wy, X)
+  WZ       <- Wr %*% Z
+  var_delta <- diag(solve(crossprod(Z, WZ), tol = 1e-20)) * MSE
+  Zb       <- data.frame(rho, t(delta_awal))
+  par_est  <- t(Zb)
+  wald     <- par_est^2 / var_delta
+  sig_wald <- 1 - pchisq(wald, 1)
+  wald_tab <- cbind(par_est, var_delta, wald, sig_wald)
+  colnames(wald_tab) <- c("delta", "var_delta", "Wald", "Sig.")
+
+  cat("\nMSE:\n");              print(MSE)
+  cat("\nR-Square:\n");         print(Rsquare)
+  cat("\nAdj. R-Square:\n");    print(Adj.Rsq)
+  cat("\nF hitung:\n");         print(cbind(Fhit, sig_F))
+  cat("\nWald hitung:\n");      print(wald_tab)
+
+  return(list(
+    Koefisien    = par_est,
+    Uji_Wald     = wald_tab,
+    R.Square     = Rsquare,
+    Adj.RSq      = Adj.Rsq,
+    Uji.F        = cbind(Fhit, sig_F),
+    MSE          = MSE,
+    Residuals    = residual,
+    Pred         = y - residual
+  ))
+}
+
+# Persiapan input Robust SDM
+y_vec   <- datafix[, "PM_2.5"]
+x_mat   <- datafix[, c("Pembakaran_Kayu", "Jumlah_Panjang_Jalan",
+                        "Jumlah_Hot_Spot", "Kelembapan", "Tekanan_Udara",
+                        "Kecepatan_Angin", "Luas_Kebakaran_Hutan",
+                        "Kendaraan_Bermotor", "Kepadatan_Penduduk",
+                        "Curah_Hujan", "Suhu", "Jumlah_Perusahaan_Konstruksi")]
+bobot   <- listw2mat(w_knn2)
+lagX    <- create_WX(x_mat, w_knn2, prefix = "lag")
+x_lag   <- cbind(x_mat, lagX)
+
+# Ambil nilai rho dari SDM
+rho_sdm <- sdm$coefficients["rho"]   # atau sesuaikan nama setelah cek summary(sdm)
+
+rsdm <- robust.SDM(x_lag, y_vec, bobot, rho = rho_sdm)
+```
+
+
+```{r}
+# ============================================================
+# 14. UJI ASUMSI SISAAN ROBUST SDM
+# ============================================================
+res_rsdm <- rsdm$Residuals
+
+cat("\n========== NORMALITAS SISAAN Robust SDM ==========\n")
+ks_rob <- ks.test(res_rsdm, "pnorm",
+                  mean = mean(res_rsdm), sd = sd(res_rsdm))
+print(ks_rob)
+
+qqnorm(res_rsdm, main = "QQ-Plot Sisaan Robust SDM")
+qqline(res_rsdm, col = "blue")
+
+cat("\n========== KEHOMOGENAN RAGAM Robust SDM (Glejser) ==========\n")
+datafix$err_rob <- abs(res_rsdm)
+glejser_rob <- lm(err_rob ~ Pembakaran_Kayu + Jumlah_Panjang_Jalan +
+                    Jumlah_Hot_Spot + Kelembapan + Tekanan_Udara +
+                    Kecepatan_Angin + Luas_Kebakaran_Hutan +
+                    Kendaraan_Bermotor + Kepadatan_Penduduk +
+                    Curah_Hujan + Suhu + Jumlah_Perusahaan_Konstruksi,
+                  data = datafix)
+summary(glejser_rob)
+
+cat("\n========== KEBEBASAN SISAAN Robust SDM (Runs Test) ==========\n")
+runs_rob <- runs.test(res_rsdm)
+print(runs_rob)
+```
+
+
+```{r}
+# ============================================================
+# 15. INTERPRETASI KOEFISIEN ROBUST SDM
+# ============================================================
+cat("\n========== KOEFISIEN ROBUST SDM ==========\n")
+print(rsdm$Koefisien)
+cat("\nUji Signifikansi Wald:\n")
+print(rsdm$Uji_Wald)
+
+cat("\n--- Peubah yang signifikan (alpha = 5%) ---\n")
+sig_vars <- rsdm$Uji_Wald[rsdm$Uji_Wald[, "Sig."] < 0.05, ]
+print(sig_vars)
+
+cat("\n--- Ringkasan ---\n")
+cat("R-Square        :", round(rsdm$R.Square, 4), "\n")
+cat("Adj. R-Square   :", round(rsdm$Adj.RSq, 4), "\n")
+cat("MSE             :", round(rsdm$MSE, 4), "\n")
+```
+

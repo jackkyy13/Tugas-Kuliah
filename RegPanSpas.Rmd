@@ -1,0 +1,114 @@
+---
+title: "Regresi Panel Spasial"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-05-05"
+output: rmdformats::downcute
+---
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(geodata)
+library(sf)
+library(plm)
+library(spdep)
+library(spatialreg)
+library(splm)
+```
+
+
+```{r}
+# DATA EXCEL
+file_path <- "AnregData.xlsx"
+sheets <- excel_sheets(file_path)
+data_raw <- map_df(sheets, ~read_excel(file_path, sheet = .x) %>% mutate(Tahun = as.numeric(.x)))
+View(data_raw)
+```
+
+```{r}
+# DOWNLOAD
+peta_idn <- gadm(country = "IDN", level = 1, path = tempdir(), version = "latest") %>% st_as_sf()
+peta_idn
+```
+
+
+```{r}
+# Perbaikan Nama Provinsi 
+peta_prov <- peta_idn %>%
+  mutate(NAME_1 = case_when(
+    NAME_1 == "Jakarta Raya" ~ "DKI Jakarta",
+    NAME_1 == "Yogyakarta" ~ "DI Yogyakarta",
+    NAME_1 == "Bangka Belitung" ~ "Kepulauan Bangka Belitung",
+    TRUE ~ NAME_1
+  ))
+```
+
+
+```{r}
+# Gabung Peta dan Data Excel 
+data_spasial_final <- peta_prov %>%
+  inner_join(data_raw, by = c("NAME_1" = "Provinsi")) %>%
+  rename(Provinsi = NAME_1)
+data_spasial_final
+```
+
+
+```{r}
+# MATRIKS BOBOT SPASIAL KNN k=4
+peta_unique <- data_spasial_final %>% distinct(Provinsi, .keep_all = TRUE)
+coords <- st_centroid(st_geometry(peta_unique))
+knn <- knearneigh(coords, k = 4)
+nb_knn <- knn2nb(knn)
+listw <- nb2listw(nb_knn, style = "W")
+```
+
+
+```{r}
+# DATA CLEANING & SCALING
+data_scaled <- data_spasial_final %>%
+  st_drop_geometry() %>%
+  mutate(across(c(`PM 2.5`, `Luas Kebakaran Hutan`, `Kendaraan Bermotor`, 
+                  `Kepadatan Penduduk`, `Curah Hujan`, `Suhu`), as.numeric)) %>%
+  mutate(across(c(`PM 2.5`, `Luas Kebakaran Hutan`, `Kendaraan Bermotor`, 
+                  `Kepadatan Penduduk`, `Curah Hujan`, `Suhu`), scale))
+
+pdata <- pdata.frame(data_scaled, index = c("Provinsi", "Tahun"))
+```
+
+
+```{r}
+formula_reg <- PM.2.5 ~ Luas.Kebakaran.Hutan + Kendaraan.Bermotor + 
+               Kepadatan.Penduduk + Curah.Hujan + Suhu
+```
+
+
+```{r}
+# Uji Hausman
+mod_fe <- plm(formula_reg, data = pdata, model = "within")
+mod_re <- plm(formula_reg, data = pdata, model = "random")
+hausman_result <- phtest(mod_fe, mod_re)
+print(hausman_result)
+```
+
+
+```{r}
+# LM Test
+mod_pool <- plm(formula_reg, data = pdata, model = "pooling")
+lm_err  <- slmtest(mod_pool, listw = listw, test = "lme")
+lm_lag  <- slmtest(mod_pool, listw = listw, test = "lml")
+rlm_err <- slmtest(mod_pool, listw = listw, test = "rlme")
+rlm_lag <- slmtest(mod_pool, listw = listw, test = "rlml")
+
+print(lm_err)
+print(lm_lag)
+print(rlm_err)
+print(rlm_lag)
+```
+```{r}
+# REM
+mod_final <- plm(formula_reg, data = pdata, model = "random")
+
+summary(mod_final) 
+```
+
+
