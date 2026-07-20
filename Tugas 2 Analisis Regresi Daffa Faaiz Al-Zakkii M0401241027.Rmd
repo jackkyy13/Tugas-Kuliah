@@ -1,0 +1,428 @@
+---
+title: "Tugas 2 Analisis Regresi"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-04-20"
+output: rmdformats::readthedown
+---
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(corrplot)
+library(car)
+library(lmtest)
+library(reshape2)
+```
+
+# Data Produksi Beras 2023
+
+```{r}
+data <- read_excel("Produksi_Beras_2023_Analisis_Regresi.xlsx")
+head(data)
+```
+```{r}
+str(data)
+```
+## Rapikan Variabel
+
+```{r}
+colnames(data) <- c("Provinsi", "Produksi_Padi", "Luas_Wilayah", "Luas_Panen", "Produktivitas", "PDRB_per_Kapita", "Produksi_Beras")
+colnames(data)
+```
+
+## Deskripsi Data
+
+Sumber Data  
+Data yang digunakan dalam penelitian ini merupakan data sekunder yang berkaitan dengan produksi beras di Indonesia tahun 2023. Data ini diperoleh dari publikasi resmi Badan Pusat Statistik (BPS).  
+  
+Deskripsi Variabel  
+Produksi_Beras (Y) -> jumlah produksi beras yang dihasilkan pada masing-masing provinsi (ton).  
+Produksi_Padi (X1) -> total produksi padi yang dihasilkan (ton).  
+Luas_Wilayah (X2) -> luas wilayah suatu provinsi (Ha), yang dapat memengaruhi kapasitas produksi pertanian.  
+Luas_Panen (X3) -> luas lahan yang digunakan untuk panen padi (Ha).  
+Produktivitas (X4) -> tingkat hasil produksi padi per satuan luas lahan (Ton/Ha).  
+PDRB_per_Kapita (X5) -> produk Domestik Regional Bruto per kapita, yang mencerminkan kondisi ekonomi suatu provinsi.  
+  
+Statistik Deskriptif  
+```{r}
+summary(data)
+data.frame(
+  Mean = sapply(data[, -1], mean), # Cari mean tiap variabel
+  Median = sapply(data[, -1], median), # Cari median tiap variabel
+  SD = sapply(data[, -1], sd), # Cari standar deviasi tiap variabel
+  Min = sapply(data[, -1], min), # Cari nilai minimum tiap variabel
+  Max = sapply(data[, -1], max) # Cari nilai maksimum tiap variabel
+)
+```
+
+```{r}
+data_long <- melt(data[, -1]) # Gapake Provinsi
+
+ggplot(data_long, aes(x = value, fill = variable)) +
+  geom_histogram(color = "black", bins = 10, alpha = 0.8) +
+  facet_wrap(~variable, scales = "free") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "Histogram Seluruh Variabel",
+    x = "Nilai",
+    y = "Frekuensi"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14)
+  )
+```
+```{r}
+data_long <- melt(data[, -1])
+ggplot(data_long, aes(x = variable, y = value, fill = variable)) +
+  geom_boxplot(alpha = 0.7) +
+  scale_fill_brewer(palette = "Set3") +
+  labs(
+    title = "Boxplot Seluruh Variabel",
+    x = "Variabel",
+    y = "Nilai"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+## Eksplorasi Data
+
+Pada tahap eksplorasi data, digunakan metode analisis eksploratif (Exploratory Data Analysis / EDA). Tujuan dari tahap ini adalah untuk mengidentifikasi pola hubungan antara variabel respon dan variabel prediktor.  
+  
+Visualisasi yang digunakan berupa scatter plot untuk melihat hubungan antar variabel, serta matriks korelasi untuk mengukur kekuatan hubungan linear antar variabel. Nilai korelasi digunakan untuk mendeteksi hubungan yang kuat maupun potensi multikolinearitas.
+
+### Produksi Padi vs Produksi Beras
+
+```{r}
+ggplot(data, aes(x = Produksi_Padi, y = Produksi_Beras)) +
+  geom_point(color = "#2E7D32", size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", color = "#C62828", se = TRUE) +
+  labs(title = "Produksi Padi vs Produksi Beras",
+       x = "Produksi Padi",
+       y = "Produksi Beras") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### Luas Wilayah vs Produksi Beras
+
+```{r}
+ggplot(data, aes(x = Luas_Wilayah, y = Produksi_Beras)) +
+  geom_point(color = "#1565C0", size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", color = "#FF6F00", se = TRUE) +
+  labs(title = "Luas Wilayah vs Produksi Beras",
+       x = "Luas Wilayah",
+       y = "Produksi Beras") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### Luas Panen vs Produksi Beras
+
+```{r}
+ggplot(data, aes(x = Luas_Panen, y = Produksi_Beras)) +
+  geom_point(color = "#F9A825", size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", color = "#6A1B9A", se = TRUE) +
+  labs(title = "Luas Panen vs Produksi Beras",
+       x = "Luas Panen",
+       y = "Produksi Beras") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### Produktivitas vs Produksi Beras
+
+```{r}
+ggplot(data, aes(x = Produktivitas, y = Produksi_Beras)) +
+  geom_point(color = "#8E24AA", size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", color = "#00897B", se = TRUE) +
+  labs(title = "Produktivitas vs Produksi Beras",
+       x = "Produktivitas",
+       y = "Produksi Beras") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### PDRB per Kapita vs Produksi Beras
+
+```{r}
+ggplot(data, aes(x = PDRB_per_Kapita, y = Produksi_Beras)) +
+  geom_point(color = "#D32F2F", size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", color = "#1976D2", se = TRUE) +
+  labs(title = "PDRB per Kapita vs Produksi Beras",
+       x = "PDRB per Kapita",
+       y = "Produksi Beras") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+### Matriks Korelasi Antar Variabel
+
+```{r}
+cor_matrix <- cor(data[, -1])  # Gapake variabel Provinsi
+cor_matrix
+corrplot(cor_matrix,
+         method = "color",
+         type = "upper",
+         addCoef.col = "black",
+         tl.col = "black",
+         col = colorRampPalette(c("#D32F2F", "white", "#1976D2"))(200),
+         number.cex = 0.7)
+```
+
+### Interpretasi 
+
+Hasil matriks korelasi menunjukkan bahwa peubah respon Produksi Beras memiliki hubungan positif sempurna dengan Produksi Padi dan Luas Panen, serta hubungan positif sedang dengan Produktivitas. Di sisi lain, peubah respon ini memiliki hubungan negatif yang sangat lemah terhadap PDRB per Kapita dan Luas Wilayah. Selain itu, terdapat korelasi yang sangat tinggi antar peubah penjelas (variabel x), baik di atas 0,5 maupun mencapai korelasi sempurna. Beberapa di antaranya adalah:  
+1. Produksi Padi dan Luas Panen memiliki korelasi 1,00.  
+2. Produktivitas dengan Produksi Padi dan Luas Panen masing-masing sebesar 0,55 dan 0,53.  
+3. Luas Wilayah dan Produktivitas menunjukkan korelasi negatif sebesar -0,42.  
+4. PDRB per Kapita memiliki hubungan negatif dengan Produktivitas (-0,22) dan Luas Panen (-0,20).  
+  
+Korelasi yang mencapai angka 1,00 antar peubah penjelas (khususnya antara Produksi Padi dan Luas Panen) mengindikasikan adanya masalah multikolinearitas sempurna. Kondisi ini menandakan adanya informasi yang redundan di dalam model, sehingga perlu dilakukan seleksi peubah penjelas agar model regresi yang dibentuk tetap stabil dan tidak bias.  
+
+### Scatter Plot Gabungan
+
+```{r}
+library(reshape2)
+
+data_long <- melt(data[, -1], id.vars = "Produksi_Beras")
+
+ggplot(data_long, aes(x = value, y = Produksi_Beras)) +
+  geom_point(color = "#3949AB", alpha = 0.7, size = 2) +
+  geom_smooth(method = "lm", color = "#E53935", se = FALSE) +
+  facet_wrap(~variable, scales = "free") +
+  labs(title = "Hubungan Variabel Prediktor dengan Produksi Beras",
+       x = "Variabel Prediktor",
+       y = "Produksi Beras") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    strip.text = element_text(face = "bold")
+  )
+```
+
+## Pemodelan Regresi
+
+Metode yang digunakan adalah regresi linier berganda, yaitu metode statistik yang digunakan untuk memodelkan hubungan antara satu variabel respon dengan beberapa variabel prediktor. Model ini diestimasi menggunakan metode Ordinary Least Squares (OLS), yaitu metode yang meminimalkan jumlah kuadrat residual (selisih antara nilai aktual dan nilai prediksi).
+
+### Model Regresi
+
+```{r}
+model <- lm(Produksi_Beras ~ Produksi_Padi + Luas_Wilayah + 
+            Luas_Panen + Produktivitas + PDRB_per_Kapita, data=data)
+summary(model)
+```
+### Persamaan Model Regresi
+
+$$\hat{Produksi_Beras} = 14850 + 0.5837Produksi_Padi + 0.0003571Luas_Wilayah - 0.03766Luas_Panen - 3721Produktivitas − 0.00136PDRB_per_Kapita$$ 
+
+### Interpretasi
+
+Berdasarkan hasil estimasi model, konstanta sebesar 14850 menunjukkan estimasi produksi beras ketika seluruh peubah penjelas bernilai nol, meskipun secara praktis nilai ini lebih berfungsi sebagai penyeimbang matematis model. Peubah Produksi Padi memiliki koefisien sebesar 0.5837 yang bersifat positif dan sangat signifikan, artinya setiap kenaikan satu unit produksi padi akan meningkatkan produksi beras sebesar 0,5837 unit dengan asumsi peubah lain tetap. Sementara itu, Luas Wilayah memiliki koefisien 0.0003571 tapi tidak signifikan secara statistik terhadap produksi beras. Hal menarik terlihat pada koefisien Luas Panen sebesar -0.03766 dan Produktivitas sebesar -3721 yang justru bertanda negatif; meskipun Produktivitas bersifat signifikan, tanda negatif pada kedua peubah ini merupakan indikasi kuat adanya gangguan multikolinearitas karena secara logika kenaikan luas panen dan produktivitas seharusnya meningkatkan produksi beras. Terakhir, PDRB per Kapita memiliki koefisien negatif sebesar -0.00136 tapi tidak signifikan, yang menunjukkan bahwa tingkat pendapatan masyarakat tidak memberikan pengaruh nyata terhadap volume produksi beras dalam model regresi ini. Secara keseluruhan, model ini menunjukkan tingkat kecocokan yang terlalu sempurna (R^2 = 1) yang menegaskan adanya redundansi informasi antar peubah penjelas.  
+
+## Pengujian Hipotesis Parameter
+
+Pengujian hipotesis parsial dilakukan menggunakan uji t, yang bertujuan untuk mengetahui apakah masing-masing koefisien regresi berbeda secara signifikan dari nol. Pengujian dilakukan dengan membandingkan nilai p-value terhadap tingkat signifikansi (α = 0.05). Jika p-value lebih kecil dari 0.05, maka koefisien regresi dianggap signifikan.
+
+### Uji Hipotesis Parsial
+
+```{r}
+summary(model)
+```
+### Hipotesis Nol dan Hipotesis Alternatif
+
+1. Intercept  
+    Hipotesis Nol (H0):  
+    β0 = 0 (Intercept tidak berpengaruh terhadap model)
+    Hipotesis Alternatif (H1):  
+    β0 != 0 (Intercept berpengaruh terhadap model)  
+    Dengan tingkat signifikansi α = 0.05  
+      
+2. Produksi_Padi  
+    Hipotesis Nol (H0):  
+    β1 = 0 (Variabel Produksi_Padi tidak berpengaruh terhadap Produksi_Beras)
+    Hipotesis Alternatif (H1):  
+    β1 != 0 (Variabel Produksi_Padi berpengaruh terhadap Produksi_Beras)  
+    Dengan tingkat signifikansi α = 0.05  
+      
+3. Luas_Wilayah  
+    Hipotesis Nol (H0):  
+    β2 = 0 (Variabel Luas_Wilayah tidak berpengaruh terhadap Produksi_Beras)
+    Hipotesis Alternatif (H1):  
+    β2 != 0 (Variabel Luas_Wilayah berpengaruh terhadap Produksi_Beras)  
+    Dengan tingkat signifikansi α = 0.05  
+      
+4. Luas_Panen  
+    Hipotesis Nol (H0):  
+    β3 = 0 (Variabel Luas_Panen tidak berpengaruh terhadap Produksi_Beras)
+    Hipotesis Alternatif (H1):  
+    β3 != 0 (Variabel Luas_Panen berpengaruh terhadap Produksi_Beras)  
+    Dengan tingkat signifikansi α = 0.05  
+      
+5. Produktivitas  
+    Hipotesis Nol (H0):  
+    β4 = 0 (Variabel Produktivitas tidak berpengaruh terhadap Produksi_Beras)
+    Hipotesis Alternatif (H1):  
+    β4 != 0 (Variabel Produktivitas berpengaruh terhadap Produksi_Beras)  
+    Dengan tingkat signifikansi α = 0.05  
+      
+6. PDRB_per_Kapita  
+    Hipotesis Nol (H0):  
+    β5 = 0 (Variabel PDRB_per_Kapita tidak berpengaruh terhadap Produksi_Beras)
+    Hipotesis Alternatif (H1):  
+    β5 != 0 (Variabel PDRB_per_Kapita berpengaruh terhadap Produksi_Beras)  
+    Dengan tingkat signifikansi α = 0.05 
+    
+### Hasil Pengujian dan Interpretasi
+
+Berdasarkan hasil uji t pada model regresi, diperoleh:  
+1. Intercept -> Nilai p-value sebesar 0.0917. Karena p-value > 0.05, maka H0 gagal ditolak, sehingga intercept tidak signifikan. Hal ini menunjukkan bahwa nilai konstanta dalam model tidak berbeda secara signifikan dari nol. Namun, interpretasi praktis dari intercept tidak terlalu relevan karena kondisi ketika semua variabel prediktor bernilai nol tidak realistis dalam konteks data.  
+
+2. Produksi_Padi -> p-value sangat kecil < 2e-16. Karena p-value < 0.05, maka H0 ditolak. Artinya, variabel Produksi_Padi berpengaruh signifikan terhadap Produksi_Beras. Secara praktis, semakin tinggi produksi padi, maka produksi beras meningkat secara signifikan.  
+  
+3. Luas_Wilayah -> p-value = 0.2368. Karena p-value > 0.05, maka H0 gagal ditolak. Artinya, variabel Luas_Wilayah tidak berpengaruh signifikan terhadap Produksi_Beras.  
+  
+4. Luas_Panen -> p-value = 0.3390. Karena p-value > 0.05, maka H0 gagal ditolak. Artinya, variabel Luas_Panen tidak berpengaruh signifikan terhadap Produksi_Beras dalam model ini.  
+  
+5. Produktivitas -> p-value = 0.0340. Karena p-value < 0.05, maka H0 ditolak. Artinya, variabel Produktivitas berpengaruh signifikan terhadap Produksi_Beras. Namun, koefisien bernilai negatif (-3721), yang menunjukkan bahwa peningkatan produktivitas justru diikuti penurunan produksi beras dalam model ini. Hal ini dapat mengindikasikan adanya hubungan tidak langsung atau pengaruh variabel lain dalam model.  
+  
+6. PDRB_per_Kapita -> p-value = 0.9376. Karena p-value > 0.05, maka H0 gagal ditolak. Artinya, variabel PDRB_per_Kapita tidak berpengaruh signifikan terhadap Produksi_Beras.  
+
+## Diagnostik Model
+
+Tahap diagnostik model dilakukan untuk mengevaluasi apakah model regresi memenuhi asumsi-asumsi klasik. Beberapa metode yang digunakan meliputi:  
+1. Uji normalitas residual (Shapiro-Wilk dan Q-Q plot) untuk memastikan residual berdistribusi normal.  
+2. Uji homoskedastisitas (Breusch-Pagan test) untuk memeriksa apakah varians residual konstan.  
+3. Uji independensi residual (Durbin-Watson test) untuk mendeteksi adanya autokorelasi.  
+4. Variance Inflation Factor (VIF) untuk mendeteksi multikolinearitas antar variabel prediktor.  
+5. Cook’s Distance, leverage, dan studentized residual untuk mendeteksi outlier dan pengamatan berpengaruh.
+
+### Normalitas Residual
+
+```{r}
+shapiro.test(residuals(model))
+```
+```{r}
+qqnorm(residuals(model))
+qqline(residuals(model), col = "red")
+```
+
+### Homoskedastisitas
+
+```{r}
+library(lmtest)
+bptest(model)
+```
+
+### Independensi Residual
+
+```{r}
+dwtest(model)
+```
+
+### Multikolinearitas
+
+```{r}
+library(car)
+vif(model)
+```
+
+### Outlier
+
+```{r}
+rstudent(model)
+```
+```{r}
+plot(model, which = 1)
+```
+
+### Leverage
+
+```{r}
+hatvalues(model)
+```
+```{r}
+plot(model, which = 5)
+```
+```{r}
+n <- nrow(data)
+2 * (5 + 1) / n
+```
+
+### Influential Observation (Cook’s Distance)
+
+```{r}
+cooks.distance(model)
+```
+```{r}
+plot(model, which = 4)
+```
+
+## Interpretasi Hasil Diagnostik
+
+### Indikasi Pelanggaran
+
+Berdasarkan uji Shapiro-Wilk, diperoleh p-value sebesar 0,2439. Karena p-value > 0.05, maka secara statistik residual terdistribusi normal. Namun, pada grafik Normal Q-Q Plot, terlihat beberapa titik data (terutama di bagian ujung kanan atas) mulai menjauh dari garis referensi merah. Kesimpulannya bahwa asumsi normalitas terpenuhi secara statistik, meskipun terdapat sedikit indikasi pencilan (outlier) yang menarik ekor distribusi.  
+  
+Uji Breusch-Pagan menunjukkan p-value sebesar 0.007585. Karena p-value < 0.05, maka tolak H0, yang berarti terjadi pelanggaran heteroskedastisitas. Varians residual tidak konstan. Hal ini juga terlihat pada grafik Residuals vs Fitted yang membentuk pola melebar (seperti corong).  
+  
+Uji Durbin-Watson menghasilkan p-value sebesar 0.9756. Karena p-value jauh di atas 0.05, maka tidak terdapat bukti adanya autokorelasi positif yang signifikan pada residual. Sehingga asumsi independensi terpenuhi.
+  
+Nilai VIF (Variance Inflation Factor) untuk peubah Produksi_Padi (328.24) dan Luas_Panen (323.68) sangat jauh melampaui batas toleransi umum (VIF > 10). Hal ini selaras dengan matriks korelasi di awal yang menunjukkan hubungan sebesar 1,00 antar peubah tersebut. Kesimpulannya adalah terjadi Multikolinearitas Sempurna/Sangat Serius. Ini adalah masalah utama pada model yang menyebabkan standar error besar dan tanda koefisien regresi menjadi tidak logis.  
+  
+Pada grafik Residuals vs Leverage dan perhitungan Cook's Distance, terdapat pengamatan (seperti data nomor 12, 13, dan 27) yang memiliki nilai Cook's Distance cukup tinggi atau berada di dekat garis batas pengaruh. Data nomor 13 khususnya terlihat memiliki residual standar yang besar. Kesimpulannya terdapat indikasi Influential Observations (data berpengaruh) yang mengganggu stabilitas model.  
+  
+### Metode Penanganan
+
+Untuk menangani Multikolinearitas, bisa melakukan eliminasi peubah dengan menghapus salah satu dari peubah yang berkorelasi sempurna. Misalnya menghapus Luas_Panen karena informasinya sudah diwakili Produksi_Padi. Metode yang dapat digunakan adalah Metode Regresi Alternatif yaitu menggunakan Ridge Regression atau Lasso Regression yang lebih tahan terhadap multikolinearitas atau Analisis Komponen Utama (PCA) yaitu mentransformasi peubah-peubah yang berkorelasi menjadi set peubah baru yang saling bebas.  
+  
+Untuk menangani Heteroskedastisitas bisa melakukan Transformasi Data dengan melakukan transformasi pada peubah respon (y), misalnya menjadi log(y) atau akar kuadrat (y). Bisa juga pakai metode Weighted Least Squares (WLS) yaitu memberikan bobot pada data berdasarkan variansnya agar estimasi lebih akurat.  
+  
+Untuk menangani Data Berpengaruh (Outlier) bisa menggunakan Regresi Robust. Regresi Robust menggunakan metode estimasi yang tidak sensitif terhadap pencilan (seperti estimasi-M). Bisa juga melakukan Pembersihan Data yaitu dengan memeriksa kembali data nomor 12, 13, dan 27 untuk memastikan tidak ada kesalahan input, atau mempertimbangkan untuk mengeluarkan data tersebut jika terbukti anomali.  
+
+## Kesimpulan
+
+Berdasarkan hasil analisis regresi linier berganda terhadap data produksi beras tahun 2023, diperoleh bahwa model mampu menjelaskan hubungan antara variabel respon Produksi_Beras dengan variabel prediktor yang digunakan. Nilai koefisien determinasi (R²) yang sangat tinggi menunjukkan bahwa model memiliki kemampuan yang sangat kuat dalam menjelaskan variasi data. Namun, nilai R² yang terlalu sempurna ini juga mengindikasikan adanya kemungkinan masalah pada model, terutama multikolinearitas yang tinggi antar variabel prediktor.  
+  
+Secara parsial, hasil uji hipotesis menunjukkan bahwa variabel Produksi_Padi dan Produktivitas berpengaruh signifikan terhadap Produksi_Beras. Variabel Produksi_Padi memiliki pengaruh positif yang sangat kuat, yang berarti peningkatan produksi padi secara langsung meningkatkan produksi beras. Sementara itu, variabel Produktivitas juga berpengaruh signifikan, namun dengan arah negatif dalam model, yang mengindikasikan adanya hubungan tidak langsung atau gangguan akibat multikolinearitas.  
+  
+Di sisi lain, variabel Luas_Wilayah, Luas_Panen, dan PDRB_per_Kapita tidak menunjukkan pengaruh yang signifikan terhadap Produksi_Beras. Hal ini menunjukkan bahwa dalam model yang digunakan, faktor-faktor tersebut tidak memberikan kontribusi langsung yang berarti terhadap produksi beras.  
+  
+Hasil eksplorasi data dan diagnostik model menunjukkan adanya beberapa permasalahan, yaitu:  
+1. Multikolinearitas sangat tinggi, khususnya antara Produksi_Padi dan Luas_Panen (korelasi mendekati 1 dan nilai VIF sangat besar).  
+2. Heteroskedastisitas, yang menunjukkan bahwa varians residual tidak konstan.  
+3. Adanya pengamatan berpengaruh (influential observations) yang dapat memengaruhi stabilitas model.  
+Meskipun asumsi normalitas dan independensi residual telah terpenuhi, keberadaan pelanggaran tersebut menyebabkan hasil model perlu diinterpretasikan dengan hati-hati.  
+  
+Untuk mengatasi permasalahan yang ditemukan, beberapa metode yang dapat digunakan antara lain:  
+1. Mengatasi Multikolinearitas  
+  Menghapus salah satu variabel yang memiliki korelasi sangat tinggi (misalnya menghapus Luas_Panen karena sudah terwakili oleh Produksi_Padi).  
+  Menggunakan metode regresi alternatif seperti Ridge Regression atau Lasso Regression.  
+  Menggunakan Principal Component Analysis (PCA) untuk membentuk variabel baru yang bebas dari korelasi.  
+2. Mengatasi Heteroskedastisitas  
+  Melakukan transformasi data, seperti transformasi logaritma pada variabel respon.  
+  Menggunakan metode Weighted Least Squares (WLS).  
+  Menggunakan regresi robust untuk mengurangi pengaruh varians yang tidak konstan.  
+3. Mengatasi Outlier dan Data Berpengaruh  
+  Melakukan pengecekan ulang data untuk memastikan tidak terjadi kesalahan input.  
+  Menghapus atau menyesuaikan data yang terbukti sebagai outlier ekstrem.  
+  Menggunakan metode Robust Regression yang lebih tahan terhadap pencilan.  
+    
+      
+Secara umum, produksi beras di Indonesia lebih dipengaruhi oleh faktor produksi utama, khususnya produksi padi, dibandingkan dengan faktor wilayah maupun kondisi ekonomi. Hubungan antara variabel respon dan variabel prediktor didominasi oleh variabel yang secara langsung berkaitan dengan proses produksi pertanian. Namun, adanya hubungan yang sangat kuat antar variabel prediktor menunjukkan bahwa model masih mengandung redundansi informasi, sehingga diperlukan penyempurnaan model agar diperoleh hasil yang lebih stabil dan interpretasi yang lebih akurat.
+
+
+
+
+
+
+
+
+
+
