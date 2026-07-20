@@ -1,0 +1,196 @@
+---
+title: "Tugas Praktikum 5  
+Metode Perancangan Percobaan"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-03-07"
+output: rmdformats::readthedown
+---
+# Tugas 1  
+## Model Linier
+Yijk=μ+αi+βj+(αβ)ij+ϵijk  
+
+Keterangan:  
+Yijk : Nilai pengamatan pada faktor A taraf ke-i, faktor B taraf ke-j, dan ulangan ke-k.  
+μ : Rataan umum.  
+αi : Efek acak dari faktor A (Operator) ke-i, di mana αi∼N(0,στ^2).  
+βj : Efek acak dari faktor B (Mesin) ke-j, di mana βj∼N(0,σβ^2).  
+(αβ)ij : Efek interaksi acak antara faktor A dan B, di mana (αβ)ij∼N(0,σαβ^2).  
+ϵijk : Galat (error) acak percobaan, di mana ϵijk∼N(0,σ^2).  
+
+## Hipotesis  
+"dua faktor acak" berarti faktornya bersifat acak, maka model linier dan hipotesisnya akan fokus pada Komponen Ragam (Varians).  
+
+Faktor Operator (A):  
+H0: σα^2=0 (Variabilitas operator tidak berkontribusi pada keragaman kekuatan).  
+H1: σα^2>0 (Variabilitas operator berkontribusi signifikan).  
+  
+Faktor Mesin (B):  
+H0: σβ^2=0 (Variabilitas mesin tidak berkontribusi pada keragaman kekuatan).  
+H1: σβ^2>0 (Variabilitas mesin berkontribusi signifikan).  
+  
+Interaksi (AB):  
+H0: σαβ^2=0 (Interaksi operator dan mesin tidak berkontribusi pada keragaman).  
+H1: σαβ^2>0 (Interaksi memberikan kontribusi signifikan).  
+  
+## Data
+```{r}
+kekuatan <- c(109, 110, 110, 115, 108, 109, 110, 108, 
+              110, 112, 110, 111, 111, 109, 114, 112, 
+              116, 114, 112, 115, 114, 119, 120, 117)
+
+Operator <- factor(rep(1:3, each = 8))
+Mesin    <- factor(rep(rep(1:4, each = 2), 3))
+Data_Produk <- data.frame(Operator, Mesin, kekuatan)
+Data_Produk
+```
+  
+## Anova
+```{r}
+Anova_Model <- aov(kekuatan ~ Operator * Mesin, data = Data_Produk)
+summary(Anova_Model)
+```
+```{r}
+# "dua faktor acak" berarti faktornya bersifat acak pakai db interaksi
+qf(0.05,2,6,lower.tail = FALSE)
+```
+```{r}
+qf(0.05,3,6,lower.tail = FALSE)
+```
+```{r}
+qf(0.05,6,12,lower.tail = FALSE)
+```
+Kesimpulan:  
+Pada Faktor Operator:  
+Didapatkan nilai Fhitung (21.143) > Ftabel (5.143) dan P-value (0.000117) < 0.05. Tolak H0. Terdapat cukup bukti untuk menyatakan bahwa terdapat kontribusi variabilitas yang nyata dari Operator terhadap kekuatan produk pada taraf nyata 5%.  
+
+Pada Faktor Mesin:  
+Didapatkan nilai Fhitung (1.095) < Ftabel(3.490) dan P-value (0.388753) > 0.05. Gagal Tolak H0. Tidak terdapat cukup bukti untuk menyatakan bahwa terdapat perbedaan atau kontribusi signifikan dari Jenis Mesin terhadap kekuatan produk pada taraf nyata 5%.  
+
+Pada Interaksi (Operator:Mesin):  
+Didapatkan nilai Fhitung (1.963) < Fatabel (2.996) dan P-value (0.150681) > 0.05. Gagal Tolak H0. Tidak terdapat cukup bukti untuk menyatakan bahwa terdapat pengaruh interaksi yang signifikan antara operator dan mesin terhadap kekuatan produk pada taraf nyata 5%.  
+
+## Plot Interaksi
+
+```{r}
+interaction.plot(Data_Produk$Mesin, Data_Produk$Operator, Data_Produk$kekuatan,
+                 xlab = "Jenis Mesin", ylab = "Rataan Kekuatan", 
+                 trace.label = "Operator", main = "Plot Interaksi Operator vs Mesin")
+```
+  
+## Uji Lanjut  
+
+Kesimpulan:  
+Berdasarkan hasil ANOVA yang telah dilakukan pada data Operator dan Mesin, diputuskan bahwa tidak diperlukan uji lanjut tukey karena sesuai dengan deskripsi soal bahwa faktor Operator dan Mesin merupakan faktor acak. Dalam Model Acak, tujuan utama analisis adalah untuk mengestimasi besarnya komponen ragam (variabilitas) yang diberikan oleh setiap faktor terhadap total keragaman respon, bukan untuk membandingkan perbedaan rata-rata antar taraf spesifik.  
+
+Disamping itu, interaksi tidak signifikan. Hasil ANOVA menunjukkan nilai pvalue untuk interaksi Operator:Mesin sebesar 0.1506. Karena p-value > 0.05, maka Gagal Tolak H0, yang berarti tidak terdapat interaksi yang nyata antara Operator dan Mesin pada taraf nyata 5%.  
+```{r}
+# Hanya menampilkan uji lanjut untuk Operator
+library(emmeans)
+library(multcomp)
+library(multcompView)
+
+marginal_operator <- emmeans(Anova_Model, ~ Operator)
+hasil_tukey <- cld(marginal_operator, alpha=0.05, Letters=letters, adjust="tukey")
+knitr::kable(hasil_tukey)
+```
+
+## Catatan  
+Tidak perlu mencari Polinomial Orthogonal karena faktornya bersifat kualitatif. Faktor Operator (1, 2, 3) dan Mesin (1, 2, 3, 4) di sini hanyalah "nama" atau kategori (kualitatif). Operator 2 tidak berarti "dua kali lipat" dari Operator 1.
+  
+# Tugas 2  
+## Model Linier  
+Yijk=μ+αi+βj+(αβ)ij+ϵijk  
+
+Keterangan:  
+Yijk : Nilai pengamatan pada Varietas ke-i, taraf Nitrogen ke-j, dan ulangan ke-k.  
+μ : Rataan umum.  
+αi : Pengaruh utama faktor Varietas taraf ke-i (i=1,2,3).  
+βj : Pengaruh utama faktor Nitrogen taraf ke-j (j=1,2,3,4,5).  
+(αβ)ij : Pengaruh interaksi antara Varietas taraf ke-i dan Nitrogen taraf ke-j.  
+ϵijk : Pengaruh acak (galat) yang menyebar normal N(0,σ^2).  
+
+## Hipotesis  
+Pengaruh Utama Faktor Varietas (A):  
+H0: α1=α2=α3=0 (Varietas tidak berpengaruh signifikan terhadap respon).  
+H1: Minimal ada satu i di mana αi!=0.  
+
+Pengaruh Utama Faktor Nitrogen (B):  
+H0: β1=β2=β3=β4=β5=0 (Nitrogen tidak berpengaruh signifikan terhadap respon).  
+H1: Minimal ada satu j di mana βj!=0.  
+
+Pengaruh Interaksi Varietas x Nitrogen:  
+H0: (αβ)11=(αβ)12=...=(αβ)35=0 (Interaksi Varietas dan Nitrogen tidak berpengaruh signifikan terhadap respon).  
+H1: Minimal ada sepasang (i,j) di mana (αβ)ij!=0.  
+
+## Data
+
+```{r}
+data_percobaan <- data.frame(
+  Varietas = rep(c("V1", "V2", "V3"), each = 15),
+  Nitrogen = rep(rep(c("N1", "N2", "N3", "N4", "N5"), each = 3), times = 3),
+  Respon = c(
+    9, 9, 10,  12, 13, 12,  13, 15, 14,  18, 19, 21,  11, 14, 12,
+    9, 8, 8,   11, 9, 9,    13, 15, 11,  16, 13, 11,  19, 16, 15,
+    9, 10, 7,  14, 12, 1,   13, 14, 14,  14, 15, 14,  12, 11, 13
+  )
+)
+print(data_percobaan)
+```
+
+## Anova  
+
+```{r}
+data_percobaan$Varietas <- as.factor(data_percobaan$Varietas)
+data_percobaan$Nitrogen <- as.factor(data_percobaan$Nitrogen)
+
+AnovaFaktorial <- aov(Respon ~ Varietas * Nitrogen, data = data_percobaan)
+summary(AnovaFaktorial)
+```
+```{r}
+qf(0.05, 2, 30, lower.tail = FALSE)
+```
+```{r}
+qf(0.05, 4, 30, lower.tail = FALSE)
+```
+```{r}
+qf(0.05, 8, 30, lower.tail = FALSE)
+```
+Kesimpulan  
+Pengaruh Faktor Varietas:  
+Fhitung (2.868) < Ftabel (3.31583) atau pvalue (0.0725) > 0.05. Gagal Tolak H0. Pada taraf nyata 5%, tidak terdapat cukup bukti untuk menyatakan bahwa perbedaan varietas memberikan pengaruh yang signifikan terhadap nilai respon. Artinya, secara rata-rata, ketiga varietas tersebut cenderung menghasilkan respon yang sama.  
+
+Pengaruh Faktor Nitrogen:  
+Fhitung (13.828) > Ftabel (2.689628) atau pvalue (1.67e-06) < 0.05. Tolak H0. Terdapat pengaruh yang sangat signifikan dari pemberian nitrogen terhadap respon. Hal ini menunjukkan bahwa perbedaan pemberian nitrogen memberikan dampak yang nyata pada hasil percobaan.  
+
+Pengaruh Interaksi:  
+Fhitung (2.367) > Ftabel (2.266163) atau pvalue (0.0417) < 0.05. Tolak H0. Terdapat interaksi yang signifikan antara Varietas dan Nitrogen. Ini berarti pengaruh dosis Nitrogen terhadap respon bergantung pada jenis Varietas yang digunakan ataupun sebaliknya.
+
+## Plot Interaksi  
+
+```{r}
+interaction.plot(data_percobaan$Nitrogen, data_percobaan$Varietas, data_percobaan$Respon,
+               xlab = "Nitrogen", ylab = "Rataan Respon", 
+                 trace.label = "Varietas", main = "Plot Interaksi Varietas vs Nitrogen")
+```
+
+## Uji Lanjut
+
+```{r}
+library(emmeans)
+library(multcomp)
+library(multcompView) 
+
+marginal <- emmeans(AnovaFaktorial, ~ Varietas:Nitrogen)
+hasil_tukeyy <- cld(marginal, alpha = 0.05, Letters = letters, adjust = "tukey")
+knitr::kable(hasil_tukeyy)
+```
+
+## Catatan  
+
+Berdasarkan struktur data dan hasil analisis ragam ANOVA, diputuskan untuk tidak menggunakan Uji Polinomial Ortogonal karena taraf nitrogen dalam soal ini (N1, N2, N3, N4, N5) disajikan dalam bentuk kategori/label, bukan dalam angka dosis atau konsentrasi yang memiliki interval kuantitatif yang jelas (seperti 0 kg, 10 kg, dst.). Uji Polinomial Ortogonal hanya valid dan disarankan jika faktor bersifat kuantitatif untuk melihat tren linear atau kuadratik.
+
+
+
+
+
+
