@@ -1,0 +1,45 @@
+---
+title: "Projek Visualisasi Data_3"
+author: "Daffa Faaiz Al-Zakkii"
+date: "2026-02-25"
+output: rmdformats::downcute
+---
+
+```{r}
+library(readxl)
+data <- read_excel("C:\\Users\\ACER\\Downloads\\Data Kelompok 3 FixBgt.xlsx", sheet="Asean")
+head(data)
+```
+```{r}
+library(readxl)
+data <- read_excel("C:\\Users\\ACER\\Downloads\\Data Kelompok 3 FixBgt.xlsx", sheet="Asean")
+
+nrow(data) 
+y_kolom <- data[[1]] # Kolom 'Negara'
+x_kolom <- as.numeric(data[[2]]) # Kolom 'Harapan Hidup'
+df_bersih <- data.frame(Negara = y_kolom, Harapan_Hidup = x_kolom)
+df_bersih <- na.omit(df_bersih)
+nrow(df_bersih)
+```
+```{r}
+library(ggplot2)
+
+ggplot(df_bersih, aes(y = reorder(Negara, Harapan_Hidup), x = Harapan_Hidup, fill = Harapan_Hidup)) +
+  geom_col(show.legend = FALSE) +
+  scale_fill_gradient(low = "skyblue", high = "royalblue") +
+  geom_text(aes(label = Harapan_Hidup), hjust = -0.2, size = 3) +
+  theme_minimal() +
+  labs(title = "Visualisasi Harapan Hidup", x = "Tahun", y = "Negara")
+```
+```{r}
+# 1. Kita buat data frame baru 'df_fix' langsung dari data yang kamu impor
+# Pakai simbol backtick ( ` ) kalau nama kolom ada spasinya
+df_fix <- data.frame(
+  Negara = data$Negara,
+  Harapan_Hidup = as.numeric(data$`Harapan Hidup`)
+)
+
+# 2. Cek apakah datanya sudah masuk
+head(df_fix)
+```
+
